@@ -138,7 +138,6 @@ attributes:
       `category_name`. Uncategorized non-mandatory rules must be below all other rules. The first matching rule
       is selected. Except for MONITOR rules, the system does not continue to evaluate traffic against additional rules
       after that traffic matches a rule.
-    max_list: 1000
     attributes:
       - model_name: id
         type: String

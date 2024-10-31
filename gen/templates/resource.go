@@ -158,7 +158,7 @@ func (r *{{camelCase .Name}}Resource) Schema(ctx context.Context, req resource.S
 				},
 				{{- end}}
 				{{- if isNestedListMapSet .}}
-				{{- $useStateForUnknown := isNestedMap .}}
+				{{- $useStateForUnknown := or (isNestedMap .) (isNestedList .)}}
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						{{- range  .Attributes}}

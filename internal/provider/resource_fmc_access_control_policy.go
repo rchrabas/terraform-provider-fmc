@@ -158,6 +158,9 @@ func (r *AccessControlPolicyResource) Schema(ctx context.Context, req resource.S
 						"id": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("Identifier of the category.").String,
 							Computed:            true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"name": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("User-specified unique string.").String,
@@ -186,6 +189,9 @@ func (r *AccessControlPolicyResource) Schema(ctx context.Context, req resource.S
 						"id": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("Unique identifier (UUID) of the access rule.").String,
 							Computed:            true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"action": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("What to do when the conditions defined by the rule are met.").AddStringEnumDescription("ALLOW", "TRUST", "BLOCK", "MONITOR", "BLOCK_RESET", "BLOCK_INTERACTIVE", "BLOCK_RESET_INTERACTIVE").String,
@@ -465,9 +471,6 @@ func (r *AccessControlPolicyResource) Schema(ctx context.Context, req resource.S
 						},
 					},
 				},
-				Validators: []validator.List{
-					listvalidator.SizeAtMost(1000),
-				},
 			},
 		},
 	}
@@ -569,13 +572,13 @@ func (r *AccessControlPolicyResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	resCats, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/categories?expanded=true&offset=0&limit=1000", reqMods...)
+	resCats, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/categories?expanded=true", reqMods...)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, resGet.String()))
 		return
 	}
 
-	resRules, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/accessrules?expanded=true&offset=0&limit=1000", reqMods...)
+	resRules, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/accessrules?expanded=true", reqMods...)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, resGet.String()))
 		return
@@ -825,6 +828,7 @@ func (r *AccessControlPolicyResource) createRulesAt(ctx context.Context, plan Ac
 	for i := startIndex; i < len(body); i++ {
 		bulk := `{"dummy_rules":[]}`
 		j := i
+		bulkCount := 0
 		head := plan.Rules[i]
 		for ; i < len(body); i++ {
 			if !head.CategoryName.Equal(plan.Rules[i].CategoryName) || head.GetSection() != plan.Rules[i].GetSection() {
@@ -837,6 +841,10 @@ func (r *AccessControlPolicyResource) createRulesAt(ctx context.Context, plan Ac
 			rule, _ = sjson.Delete(rule, "metadata.section")
 
 			bulk, _ = sjson.SetRaw(bulk, "dummy_rules.-1", rule)
+			bulkCount++
+			if bulkCount >= bulkSizeCreate {
+				continue
+			}
 		}
 
 		param := "?bulk=true"
