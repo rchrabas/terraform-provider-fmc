@@ -829,6 +829,7 @@ func (r *AccessControlPolicyResource) createRulesAt(ctx context.Context, plan Ac
 		bulk := `{"dummy_rules":[]}`
 		j := i
 		bulkCount := 0
+		bodyLength := 0
 		head := plan.Rules[i]
 		for ; i < len(body); i++ {
 			if !head.CategoryName.Equal(plan.Rules[i].CategoryName) || head.GetSection() != plan.Rules[i].GetSection() {
@@ -840,10 +841,17 @@ func (r *AccessControlPolicyResource) createRulesAt(ctx context.Context, plan Ac
 			rule, _ = sjson.Delete(rule, "metadata.category")
 			rule, _ = sjson.Delete(rule, "metadata.section")
 
+			// Check if the body is too big for a single POST
+			bodyLength += len(rule)
+			if bodyLength >= maxPayloadSize {
+				i--
+				break
+			}
+
 			bulk, _ = sjson.SetRaw(bulk, "dummy_rules.-1", rule)
 			bulkCount++
 			if bulkCount >= bulkSizeCreate {
-				continue
+				break
 			}
 		}
 
