@@ -22,19 +22,25 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/netascode/go-fmc"
 	"github.com/netascode/terraform-provider-fmc/internal/provider/helpers"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // End of section. //template:end imports
@@ -96,10 +102,6 @@ func (r *FTDNATPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 							MarkdownDescription: helpers.NewAttributeDescription("Identifier of the manual nat rule.").String,
 							Computed:            true,
 						},
-						"name": schema.StringAttribute{
-							MarkdownDescription: helpers.NewAttributeDescription("User-specified unique string.").String,
-							Required:            true,
-						},
 						"description": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("My manual nat rule 1").String,
 							Optional:            true,
@@ -109,10 +111,10 @@ func (r *FTDNATPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 							Optional:            true,
 						},
 						"section": schema.StringAttribute{
-							MarkdownDescription: helpers.NewAttributeDescription("To which section the rule belongs.").AddStringEnumDescription("before_auto", "after_auto").String,
+							MarkdownDescription: helpers.NewAttributeDescription("To which section the rule belongs.").AddStringEnumDescription("BEFORE_AUTO", "AFTER_AUTO").String,
 							Required:            true,
 							Validators: []validator.String{
-								stringvalidator.OneOf("before_auto", "after_auto"),
+								stringvalidator.OneOf("BEFORE_AUTO", "AFTER_AUTO"),
 							},
 						},
 						"fall_through": schema.BoolAttribute{
@@ -217,10 +219,6 @@ func (r *FTDNATPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 								stringvalidator.OneOf("STATIC", "DYNAMIC"),
 							},
 						},
-						"description": schema.StringAttribute{
-							MarkdownDescription: helpers.NewAttributeDescription("My auto nat rule 1").String,
-							Optional:            true,
-						},
 						"destination_interface_id": schema.StringAttribute{
 							MarkdownDescription: helpers.NewAttributeDescription("ID of destination security zone").String,
 							Optional:            true,
@@ -297,8 +295,6 @@ func (r *FTDNATPolicyResource) Configure(_ context.Context, req resource.Configu
 
 // End of section. //template:end model
 
-// Section below is generated&owned by "gen/generator.go". //template:begin create
-
 func (r *FTDNATPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan FTDNATPolicy
 
@@ -316,32 +312,47 @@ func (r *FTDNATPolicyResource) Create(ctx context.Context, req resource.CreateRe
 
 	tflog.Debug(ctx, fmt.Sprintf("%s: Beginning Create", plan.Id.ValueString()))
 
+	planBody := plan.toBody(ctx, FTDNATPolicy{})
+
 	// Create object
-	body := plan.toBody(ctx, FTDNATPolicy{})
+	body := planBody
+	body, _ = sjson.Delete(body, "dummy_manual_nat_rules")
+	body, _ = sjson.Delete(body, "dummy_auto_nat_rules")
+
 	res, err := r.client.Post(plan.getPath(), body, reqMods...)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to configure object (POST/PUT), got error: %s, %s", err, res.String()))
 		return
 	}
 	plan.Id = types.StringValue(res.Get("id").String())
+
 	res, err = r.client.Get(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString()), reqMods...)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, res.String()))
+
+		res, err := r.client.Delete(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString()), reqMods...)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Client Error", fmt.Sprintf("Also, cannot DELETE a hanging policy object, got error: %s, %s", err, res.String()))
+		}
 		return
 	}
+
 	plan.fromBodyUnknowns(ctx, res)
+
+	state := plan
+	state.AutoNatRules = nil
+	state.ManualNatRules = nil
+
+	state, diags = r.updateSubresources(ctx, req.Plan, plan, planBody, tfsdk.State{}, state)
+	resp.Diagnostics.Append(diags...)
 
 	tflog.Debug(ctx, fmt.Sprintf("%s: Create finished successfully", plan.Id.ValueString()))
 
-	diags = resp.State.Set(ctx, &plan)
+	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 
 	helpers.SetFlagImporting(ctx, false, resp.Private, &resp.Diagnostics)
 }
-
-// End of section. //template:end create
-
-// Section below is generated&owned by "gen/generator.go". //template:begin read
 
 func (r *FTDNATPolicyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state FTDNATPolicy
@@ -361,15 +372,43 @@ func (r *FTDNATPolicyResource) Read(ctx context.Context, req resource.ReadReques
 	tflog.Debug(ctx, fmt.Sprintf("%s: Beginning Read", state.Id.String()))
 
 	urlPath := state.getPath() + "/" + url.QueryEscape(state.Id.ValueString())
-	res, err := r.client.Get(urlPath, reqMods...)
+	resGet, err := r.client.Get(urlPath, reqMods...)
 
 	if err != nil && strings.Contains(err.Error(), "StatusCode 404") {
 		resp.State.RemoveResource(ctx)
 		return
 	} else if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, res.String()))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, resGet.String()))
 		return
 	}
+
+	resManualRules, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/manualnatrules?expanded=true", reqMods...)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, resManualRules.String()))
+		return
+	}
+
+	resAutoRules, err := r.client.Get(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/autonatrules?expanded=true", reqMods...)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, resAutoRules.String()))
+		return
+	}
+
+	s := resGet.String()
+
+	replaceManualRules := resManualRules.Get("items").String()
+	if replaceManualRules == "" {
+		replaceManualRules = "[]"
+	}
+	s, _ = sjson.SetRaw(s, "dummy_manual_nat_rules", replaceManualRules)
+
+	replaceAutoRules := resAutoRules.Get("items").String()
+	if replaceAutoRules == "" {
+		replaceAutoRules = "[]"
+	}
+	s, _ = sjson.SetRaw(s, "dummy_auto_nat_rules", replaceAutoRules)
+
+	res := gjson.Parse(s)
 
 	imp, diags := helpers.IsFlagImporting(ctx, req)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -390,10 +429,6 @@ func (r *FTDNATPolicyResource) Read(ctx context.Context, req resource.ReadReques
 
 	helpers.SetFlagImporting(ctx, false, resp.Private, &resp.Diagnostics)
 }
-
-// End of section. //template:end read
-
-// Section below is generated&owned by "gen/generator.go". //template:begin update
 
 func (r *FTDNATPolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan, state FTDNATPolicy
@@ -418,26 +453,236 @@ func (r *FTDNATPolicyResource) Update(ctx context.Context, req resource.UpdateRe
 
 	tflog.Debug(ctx, fmt.Sprintf("%s: Beginning Update", plan.Id.ValueString()))
 
-	body := plan.toBody(ctx, state)
+	planBody := plan.toBody(ctx, state)
+	body := planBody
+	body, _ = sjson.Delete(body, "dummy_manual_nat_rules")
+	body, _ = sjson.Delete(body, "dummy_auto_nat_rules")
+
 	res, err := r.client.Put(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString()), body, reqMods...)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to configure object (PUT), got error: %s, %s", err, res.String()))
 		return
 	}
-	res, err = r.client.Get(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString()), reqMods...)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, res.String()))
-		return
-	}
+
 	plan.fromBodyUnknowns(ctx, res)
+
+	orig := state
+	state = plan
+	state.ManualNatRules, state.AutoNatRules = orig.ManualNatRules, orig.AutoNatRules
+
+	state, diags = r.updateSubresources(ctx, req.Plan, plan, planBody, req.State, state)
+	resp.Diagnostics.Append(diags...)
 
 	tflog.Debug(ctx, fmt.Sprintf("%s: Update finished successfully", plan.Id.ValueString()))
 
-	diags = resp.State.Set(ctx, &plan)
+	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
 
-// End of section. //template:end update
+func (r *FTDNATPolicyResource) updateSubresources(ctx context.Context, tfsdkPlan tfsdk.Plan, plan FTDNATPolicy, planBody string, tfsdkState tfsdk.State, state FTDNATPolicy) (FTDNATPolicy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	p := gjson.Parse(planBody)
+	bodyManualNatRules := p.Get("dummy_manual_nat_rules").Array()
+	bodyAutoNatRules := p.Get("dummy_auto_nat_rules").Array()
+
+	// Set request domain if provided
+	reqMods := [](func(*fmc.Req)){}
+	if !plan.Domain.IsNull() && plan.Domain.ValueString() != "" {
+		reqMods = append(reqMods, fmc.DomainName(plan.Domain.ValueString()))
+	}
+
+	// TODO: For now we remove all the rules
+	keptManualNatRules := 0
+	keptAutoNatRules := 0
+
+	err := r.truncateManualNatRulesAt(ctx, &state, keptManualNatRules, reqMods...)
+	if err != nil {
+		diags.AddError("Client Error", err.Error())
+		return state, diags
+	}
+
+	err = r.truncateAutoNatRulesAt(ctx, &state, keptAutoNatRules, reqMods...)
+	if err != nil {
+		diags.AddError("Client Error", err.Error())
+		return state, diags
+	}
+
+	if len(plan.ManualNatRules) == 0 {
+		state.ManualNatRules = plan.ManualNatRules
+	}
+
+	if len(plan.AutoNatRules) == 0 {
+		state.AutoNatRules = plan.AutoNatRules
+	}
+
+	err = r.createManualNatRulesAt(ctx, plan, bodyManualNatRules, keptManualNatRules, &state, reqMods...)
+	if err != nil {
+		diags.AddError("Client Error", err.Error())
+		return state, diags
+	}
+
+	err = r.createAutoNatRulesAt(ctx, plan, bodyAutoNatRules, keptAutoNatRules, &state, reqMods...)
+	if err != nil {
+		diags.AddError("Client Error", err.Error())
+		return state, diags
+	}
+
+	return state, diags
+}
+
+func (r *FTDNATPolicyResource) truncateManualNatRulesAt(ctx context.Context, state *FTDNATPolicy, kept int, reqMods ...func(*fmc.Req)) error {
+	var b strings.Builder
+	var bulks []string
+	var counts []int
+	count := 0
+
+	for i := kept; i < len(state.ManualNatRules); i++ {
+		b.WriteString(state.ManualNatRules[i].Id.ValueString() + ",")
+		count++
+		if b.Len() >= maxUrlLength {
+			bulks = append(bulks, b.String())
+			counts = append(counts, count)
+			b.Reset()
+			count = 0
+		}
+	}
+
+	if b.Len() > 0 {
+		bulks = append(bulks, b.String())
+		counts = append(counts, count)
+	}
+
+	defer func() {
+		time.Sleep(2 * time.Second)
+	}()
+
+	for i, bulk := range bulks {
+		res, err := r.client.Delete(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/manualnatrules?bulk=true&filter=ids:"+url.QueryEscape(bulk), reqMods...)
+		if err != nil {
+			return fmt.Errorf("failed to delete object (DELETE), got error: %s, %s", err, res.String())
+		}
+		tflog.Debug(ctx, fmt.Sprintf("%s: Truncate finished successfully", state.Id.ValueString()))
+
+		state.ManualNatRules = slices.Delete(state.ManualNatRules, kept, kept+counts[i])
+	}
+
+	return nil
+}
+
+func (r *FTDNATPolicyResource) truncateAutoNatRulesAt(ctx context.Context, state *FTDNATPolicy, kept int, reqMods ...func(*fmc.Req)) error {
+	var b strings.Builder
+	var bulks []string
+	var counts []int
+	count := 0
+
+	for i := kept; i < len(state.AutoNatRules); i++ {
+		b.WriteString(state.AutoNatRules[i].Id.ValueString() + ",")
+		count++
+		if b.Len() >= maxUrlLength {
+			bulks = append(bulks, b.String())
+			counts = append(counts, count)
+			b.Reset()
+			count = 0
+		}
+	}
+
+	if b.Len() > 0 {
+		bulks = append(bulks, b.String())
+		counts = append(counts, count)
+	}
+
+	defer func() {
+		time.Sleep(2 * time.Second)
+	}()
+
+	for i, bulk := range bulks {
+		res, err := r.client.Delete(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString())+"/autonatrules?bulk=true&filter=ids:"+url.QueryEscape(bulk), reqMods...)
+		if err != nil {
+			return fmt.Errorf("failed to delete object (DELETE), got error: %s, %s", err, res.String())
+		}
+		tflog.Debug(ctx, fmt.Sprintf("%s: Truncate finished successfully", state.Id.ValueString()))
+
+		state.AutoNatRules = slices.Delete(state.AutoNatRules, kept, kept+counts[i])
+	}
+
+	return nil
+}
+
+func (r *FTDNATPolicyResource) createManualNatRulesAt(ctx context.Context, plan FTDNATPolicy, body []gjson.Result, startIndex int, state *FTDNATPolicy, reqMods ...func(*fmc.Req)) error {
+	for i := startIndex; i < len(body); i++ {
+		bulk := `{"dummy_manual_nat_rules":[]}`
+		j := i
+		head := plan.ManualNatRules[i]
+
+		for ; i < len(body); i++ {
+			if !head.Section.Equal(plan.ManualNatRules[i].Section) {
+				i--
+				break
+			}
+			rule := body[i].String()
+			rule, _ = sjson.Delete(rule, "metadata")
+			tflog.Debug(ctx, fmt.Sprintf("Rule: %s", rule))
+			bulk, _ = sjson.SetRaw(bulk, "dummy_manual_nat_rules.-1", rule)
+		}
+
+		tflog.Debug(ctx, fmt.Sprintf("Bulk: %s", bulk))
+
+		param := "?bulk=true&section=" + strings.ToLower(head.Section.ValueString())
+		res, err := r.client.Post(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString())+"/manualnatrules"+param, gjson.Parse(bulk).Get("dummy_manual_nat_rules").String(), reqMods...)
+		if err != nil {
+			return fmt.Errorf("failed to configure object (POST), got error: %s, %s", err, res.String())
+		}
+
+		for _, v := range res.Get("items").Array() {
+			item := plan.ManualNatRules[j]
+			item.Id = types.StringValue(v.Get("id").String())
+
+			if len(state.ManualNatRules) <= j {
+				state.ManualNatRules = append(state.ManualNatRules, item)
+			} else {
+				state.ManualNatRules[j] = item
+			}
+
+			j++
+		}
+	}
+
+	return nil
+}
+
+func (r *FTDNATPolicyResource) createAutoNatRulesAt(ctx context.Context, plan FTDNATPolicy, body []gjson.Result, startIndex int, state *FTDNATPolicy, reqMods ...func(*fmc.Req)) error {
+	for i := startIndex; i < len(body); i++ {
+		bulk := `{"dummy_auto_nat_rules":[]}`
+		j := i
+
+		for ; i < len(body); i++ {
+			rule := body[i].String()
+			bulk, _ = sjson.SetRaw(bulk, "dummy_auto_nat_rules.-1", rule)
+		}
+
+		param := "?bulk=true"
+		res, err := r.client.Post(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString())+"/autonatrules"+param, gjson.Parse(bulk).Get("dummy_auto_nat_rules").String(), reqMods...)
+		if err != nil {
+			return fmt.Errorf("failed to configure object (POST), got error: %s, %s", err, res.String())
+		}
+
+		for _, v := range res.Get("items").Array() {
+			item := plan.AutoNatRules[j]
+			item.Id = types.StringValue(v.Get("id").String())
+
+			if len(state.AutoNatRules) <= j {
+				state.AutoNatRules = append(state.AutoNatRules, item)
+			} else {
+				state.AutoNatRules[j] = item
+			}
+
+			j++
+		}
+	}
+
+	return nil
+}
 
 // Section below is generated&owned by "gen/generator.go". //template:begin delete
 
@@ -481,13 +726,3 @@ func (r *FTDNATPolicyResource) ImportState(ctx context.Context, req resource.Imp
 // End of section. //template:end import
 
 // Section below is generated&owned by "gen/generator.go". //template:begin createSubresources
-
-// End of section. //template:end createSubresources
-
-// Section below is generated&owned by "gen/generator.go". //template:begin deleteSubresources
-
-// End of section. //template:end deleteSubresources
-
-// Section below is generated&owned by "gen/generator.go". //template:begin updateSubresources
-
-// End of section. //template:end updateSubresources

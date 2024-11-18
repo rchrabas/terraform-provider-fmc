@@ -88,10 +88,6 @@ func (d *FTDNATPolicyDataSource) Schema(ctx context.Context, req datasource.Sche
 							MarkdownDescription: "Identifier of the manual nat rule.",
 							Computed:            true,
 						},
-						"name": schema.StringAttribute{
-							MarkdownDescription: "User-specified unique string.",
-							Computed:            true,
-						},
 						"description": schema.StringAttribute{
 							MarkdownDescription: "My manual nat rule 1",
 							Computed:            true,
@@ -198,10 +194,6 @@ func (d *FTDNATPolicyDataSource) Schema(ctx context.Context, req datasource.Sche
 						},
 						"nat_type": schema.StringAttribute{
 							MarkdownDescription: "The type of the rule",
-							Computed:            true,
-						},
-						"description": schema.StringAttribute{
-							MarkdownDescription: "My auto nat rule 1",
 							Computed:            true,
 						},
 						"destination_interface_id": schema.StringAttribute{

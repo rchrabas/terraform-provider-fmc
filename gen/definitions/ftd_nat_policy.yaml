@@ -1,6 +1,6 @@
 ---
 name: FTD NAT Policy
-rest_endpoint: /api/fmc_config/v1/domain/{domainUUID}/policy/ftdnatpolicies
+rest_endpoint: /api/fmc_config/v1/domain/{DOMAIN_UUID}/policy/ftdnatpolicies
 data_source_name_query: true
 doc_category: Policy
 attributes:
@@ -25,11 +25,6 @@ attributes:
         resource_id: true
         exclude_example: true
         exclude_test: true
-      - model_name: name
-        type: String
-        description: User-specified unique string.
-        mandatory: true
-        example: my_rule_1
       - model_name: description
         type: String
         description: My manual nat rule 1
@@ -42,10 +37,11 @@ attributes:
         type: String
         description: To which section the rule belongs.
         mandatory: true
+        data_path: [metadata]
         enum_values:
-          - before_auto
-          - after_auto
-        example: before_auto
+          - BEFORE_AUTO
+          - AFTER_AUTO
+        example: BEFORE_AUTO
       - model_name: fallThrough
         tf_name: fall_through
         type: Bool
@@ -191,10 +187,6 @@ attributes:
           - DYNAMIC
         example: STATIC
         mandatory: true
-      - model_name: description
-        type: String
-        description: My auto nat rule 1
-        example: My auto nat rule 1
       - model_name: id
         tf_name: destination_interface_id
         type: String

@@ -33,10 +33,9 @@ func TestAccFmcFTDNATPolicy(t *testing.T) {
 	var checks []resource.TestCheckFunc
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "name", "nat_policy_1"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "description", "My nat policy"))
-	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.name", "my_rule_1"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.description", "My manual nat rule 1"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.enabled", "true"))
-	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.section", "before_auto"))
+	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.section", "BEFORE_AUTO"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.fall_through", "false"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.nat_type", "STATIC"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.ipv6", "false"))
@@ -52,7 +51,6 @@ func TestAccFmcFTDNATPolicy(t *testing.T) {
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.translated_destination_id", "76d24097-41c4-4558-a4d0-a8c07ac08470"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "manual_nat_rules.0.translated_destination_port_id", "76d24097-41c4-4558-a4d0-a8c07ac08470"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "auto_nat_rules.0.nat_type", "STATIC"))
-	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "auto_nat_rules.0.description", "My auto nat rule 1"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "auto_nat_rules.0.destination_interface_id", "76d24097-41c4-4558-a4d0-a8c07ac08470"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "auto_nat_rules.0.fall_through", "false"))
 	checks = append(checks, resource.TestCheckResourceAttr("fmc_ftd_nat_policy.test", "auto_nat_rules.0.ipv6", "false"))
@@ -108,10 +106,9 @@ func testAccFmcFTDNATPolicyConfig_all() string {
 	config += `	name = "nat_policy_1"` + "\n"
 	config += `	description = "My nat policy"` + "\n"
 	config += `	manual_nat_rules = [{` + "\n"
-	config += `		name = "my_rule_1"` + "\n"
 	config += `		description = "My manual nat rule 1"` + "\n"
 	config += `		enabled = true` + "\n"
-	config += `		section = "before_auto"` + "\n"
+	config += `		section = "BEFORE_AUTO"` + "\n"
 	config += `		fall_through = false` + "\n"
 	config += `		nat_type = "STATIC"` + "\n"
 	config += `		ipv6 = false` + "\n"
@@ -129,7 +126,6 @@ func testAccFmcFTDNATPolicyConfig_all() string {
 	config += `	}]` + "\n"
 	config += `	auto_nat_rules = [{` + "\n"
 	config += `		nat_type = "STATIC"` + "\n"
-	config += `		description = "My auto nat rule 1"` + "\n"
 	config += `		destination_interface_id = "76d24097-41c4-4558-a4d0-a8c07ac08470"` + "\n"
 	config += `		fall_through = false` + "\n"
 	config += `		ipv6 = false` + "\n"

@@ -18,10 +18,9 @@ resource "fmc_ftd_nat_policy" "example" {
   description = "My nat policy"
   manual_nat_rules = [
     {
-      name                           = "my_rule_1"
       description                    = "My manual nat rule 1"
       enabled                        = true
-      section                        = "before_auto"
+      section                        = "BEFORE_AUTO"
       fall_through                   = false
       nat_type                       = "STATIC"
       ipv6                           = false
@@ -41,7 +40,6 @@ resource "fmc_ftd_nat_policy" "example" {
   auto_nat_rules = [
     {
       nat_type                 = "STATIC"
-      description              = "My auto nat rule 1"
       destination_interface_id = "76d24097-41c4-4558-a4d0-a8c07ac08470"
       fall_through             = false
       ipv6                     = false
@@ -84,7 +82,6 @@ Required:
 
 Optional:
 
-- `description` (String) My auto nat rule 1
 - `destination_interface_id` (String) ID of destination security zone
 - `fall_through` (Boolean) TBD???????????
 - `ipv6` (Boolean) TBD???????????
@@ -111,11 +108,10 @@ Read-Only:
 
 Required:
 
-- `name` (String) User-specified unique string.
 - `nat_type` (String) The type of the rule
   - Choices: `STATIC`, `DYNAMIC`
 - `section` (String) To which section the rule belongs.
-  - Choices: `before_auto`, `after_auto`
+  - Choices: `BEFORE_AUTO`, `AFTER_AUTO`
 
 Optional:
 

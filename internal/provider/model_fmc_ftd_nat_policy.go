@@ -45,7 +45,6 @@ type FTDNATPolicy struct {
 
 type FTDNATPolicyManualNatRules struct {
 	Id                             types.String `tfsdk:"id"`
-	Name                           types.String `tfsdk:"name"`
 	Description                    types.String `tfsdk:"description"`
 	Enabled                        types.Bool   `tfsdk:"enabled"`
 	Section                        types.String `tfsdk:"section"`
@@ -74,7 +73,6 @@ type FTDNATPolicyManualNatRules struct {
 type FTDNATPolicyAutoNatRules struct {
 	Id                                      types.String `tfsdk:"id"`
 	NatType                                 types.String `tfsdk:"nat_type"`
-	Description                             types.String `tfsdk:"description"`
 	DestinationInterfaceId                  types.String `tfsdk:"destination_interface_id"`
 	FallThrough                             types.Bool   `tfsdk:"fall_through"`
 	Ipv6                                    types.Bool   `tfsdk:"ipv6"`
@@ -96,7 +94,7 @@ type FTDNATPolicyAutoNatRules struct {
 // Section below is generated&owned by "gen/generator.go". //template:begin getPath
 
 func (data FTDNATPolicy) getPath() string {
-	return "/api/fmc_config/v1/domain/{domainUUID}/policy/ftdnatpolicies"
+	return "/api/fmc_config/v1/domain/{DOMAIN_UUID}/policy/ftdnatpolicies"
 }
 
 // End of section. //template:end getPath
@@ -121,9 +119,6 @@ func (data FTDNATPolicy) toBody(ctx context.Context, state FTDNATPolicy) string 
 			if !item.Id.IsNull() && !item.Id.IsUnknown() {
 				itemBody, _ = sjson.Set(itemBody, "id", item.Id.ValueString())
 			}
-			if !item.Name.IsNull() {
-				itemBody, _ = sjson.Set(itemBody, "name", item.Name.ValueString())
-			}
 			if !item.Description.IsNull() {
 				itemBody, _ = sjson.Set(itemBody, "description", item.Description.ValueString())
 			}
@@ -131,7 +126,7 @@ func (data FTDNATPolicy) toBody(ctx context.Context, state FTDNATPolicy) string 
 				itemBody, _ = sjson.Set(itemBody, "enabled", item.Enabled.ValueBool())
 			}
 			if !item.Section.IsNull() {
-				itemBody, _ = sjson.Set(itemBody, "section", item.Section.ValueString())
+				itemBody, _ = sjson.Set(itemBody, "metadata.section", item.Section.ValueString())
 			}
 			if !item.FallThrough.IsNull() {
 				itemBody, _ = sjson.Set(itemBody, "fallThrough", item.FallThrough.ValueBool())
@@ -206,9 +201,6 @@ func (data FTDNATPolicy) toBody(ctx context.Context, state FTDNATPolicy) string 
 			if !item.NatType.IsNull() {
 				itemBody, _ = sjson.Set(itemBody, "natType", item.NatType.ValueString())
 			}
-			if !item.Description.IsNull() {
-				itemBody, _ = sjson.Set(itemBody, "description", item.Description.ValueString())
-			}
 			if !item.DestinationInterfaceId.IsNull() {
 				itemBody, _ = sjson.Set(itemBody, "destinationInterface.id", item.DestinationInterfaceId.ValueString())
 			}
@@ -282,11 +274,6 @@ func (data *FTDNATPolicy) fromBody(ctx context.Context, res gjson.Result) {
 			} else {
 				data.Id = types.StringNull()
 			}
-			if value := res.Get("name"); value.Exists() {
-				data.Name = types.StringValue(value.String())
-			} else {
-				data.Name = types.StringNull()
-			}
 			if value := res.Get("description"); value.Exists() {
 				data.Description = types.StringValue(value.String())
 			} else {
@@ -297,7 +284,7 @@ func (data *FTDNATPolicy) fromBody(ctx context.Context, res gjson.Result) {
 			} else {
 				data.Enabled = types.BoolNull()
 			}
-			if value := res.Get("section"); value.Exists() {
+			if value := res.Get("metadata.section"); value.Exists() {
 				data.Section = types.StringValue(value.String())
 			} else {
 				data.Section = types.StringNull()
@@ -421,11 +408,6 @@ func (data *FTDNATPolicy) fromBody(ctx context.Context, res gjson.Result) {
 			} else {
 				data.NatType = types.StringNull()
 			}
-			if value := res.Get("description"); value.Exists() {
-				data.Description = types.StringValue(value.String())
-			} else {
-				data.Description = types.StringNull()
-			}
 			if value := res.Get("destinationInterface.id"); value.Exists() {
 				data.DestinationInterfaceId = types.StringValue(value.String())
 			} else {
@@ -541,11 +523,6 @@ func (data *FTDNATPolicy) fromBodyPartial(ctx context.Context, res gjson.Result)
 		} else {
 			data.Id = types.StringNull()
 		}
-		if value := res.Get("name"); value.Exists() && !data.Name.IsNull() {
-			data.Name = types.StringValue(value.String())
-		} else {
-			data.Name = types.StringNull()
-		}
 		if value := res.Get("description"); value.Exists() && !data.Description.IsNull() {
 			data.Description = types.StringValue(value.String())
 		} else {
@@ -556,7 +533,7 @@ func (data *FTDNATPolicy) fromBodyPartial(ctx context.Context, res gjson.Result)
 		} else {
 			data.Enabled = types.BoolNull()
 		}
-		if value := res.Get("section"); value.Exists() && !data.Section.IsNull() {
+		if value := res.Get("metadata.section"); value.Exists() && !data.Section.IsNull() {
 			data.Section = types.StringValue(value.String())
 		} else {
 			data.Section = types.StringNull()
@@ -664,8 +641,8 @@ func (data *FTDNATPolicy) fromBodyPartial(ctx context.Context, res gjson.Result)
 		(*parent).ManualNatRules[i] = data
 	}
 	for i := 0; i < len(data.AutoNatRules); i++ {
-		keys := [...]string{"id", "natType", "description", "destinationInterface.id", "fallThrough", "interfaceIpv6", "netToNet", "noProxyArp", "originalNetwork.id", "originalPort", "serviceProtocol", "routeLookup", "sourceInterface.id", "dns", "translatedNetwork.id", "interfaceInTranslatedNetwork", "translatedPort"}
-		keyValues := [...]string{data.AutoNatRules[i].Id.ValueString(), data.AutoNatRules[i].NatType.ValueString(), data.AutoNatRules[i].Description.ValueString(), data.AutoNatRules[i].DestinationInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].FallThrough.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].Ipv6.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NetToNet.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NoProxyArp.ValueBool()), data.AutoNatRules[i].OriginalNetworkId.ValueString(), strconv.FormatInt(data.AutoNatRules[i].OriginalPort.ValueInt64(), 10), data.AutoNatRules[i].Protocol.ValueString(), strconv.FormatBool(data.AutoNatRules[i].PerformRouteLookup.ValueBool()), data.AutoNatRules[i].SourceInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslateDns.ValueBool()), data.AutoNatRules[i].TranslatedNetworkId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslatedNetworkIsDestinationInterface.ValueBool()), strconv.FormatInt(data.AutoNatRules[i].TranslatedPort.ValueInt64(), 10)}
+		keys := [...]string{"id", "natType", "destinationInterface.id", "fallThrough", "interfaceIpv6", "netToNet", "noProxyArp", "originalNetwork.id", "originalPort", "serviceProtocol", "routeLookup", "sourceInterface.id", "dns", "translatedNetwork.id", "interfaceInTranslatedNetwork", "translatedPort"}
+		keyValues := [...]string{data.AutoNatRules[i].Id.ValueString(), data.AutoNatRules[i].NatType.ValueString(), data.AutoNatRules[i].DestinationInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].FallThrough.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].Ipv6.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NetToNet.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NoProxyArp.ValueBool()), data.AutoNatRules[i].OriginalNetworkId.ValueString(), strconv.FormatInt(data.AutoNatRules[i].OriginalPort.ValueInt64(), 10), data.AutoNatRules[i].Protocol.ValueString(), strconv.FormatBool(data.AutoNatRules[i].PerformRouteLookup.ValueBool()), data.AutoNatRules[i].SourceInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslateDns.ValueBool()), data.AutoNatRules[i].TranslatedNetworkId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslatedNetworkIsDestinationInterface.ValueBool()), strconv.FormatInt(data.AutoNatRules[i].TranslatedPort.ValueInt64(), 10)}
 
 		parent := &data
 		data := (*parent).AutoNatRules[i]
@@ -708,11 +685,6 @@ func (data *FTDNATPolicy) fromBodyPartial(ctx context.Context, res gjson.Result)
 			data.NatType = types.StringValue(value.String())
 		} else {
 			data.NatType = types.StringNull()
-		}
-		if value := res.Get("description"); value.Exists() && !data.Description.IsNull() {
-			data.Description = types.StringValue(value.String())
-		} else {
-			data.Description = types.StringNull()
 		}
 		if value := res.Get("destinationInterface.id"); value.Exists() && !data.DestinationInterfaceId.IsNull() {
 			data.DestinationInterfaceId = types.StringValue(value.String())
@@ -807,8 +779,8 @@ func (data *FTDNATPolicy) fromBodyUnknowns(ctx context.Context, res gjson.Result
 		}
 	}
 	for i := range data.AutoNatRules {
-		keys := [...]string{"id", "natType", "description", "destinationInterface.id", "fallThrough", "interfaceIpv6", "netToNet", "noProxyArp", "originalNetwork.id", "originalPort", "serviceProtocol", "routeLookup", "sourceInterface.id", "dns", "translatedNetwork.id", "interfaceInTranslatedNetwork", "translatedPort"}
-		keyValues := [...]string{data.AutoNatRules[i].Id.ValueString(), data.AutoNatRules[i].NatType.ValueString(), data.AutoNatRules[i].Description.ValueString(), data.AutoNatRules[i].DestinationInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].FallThrough.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].Ipv6.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NetToNet.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NoProxyArp.ValueBool()), data.AutoNatRules[i].OriginalNetworkId.ValueString(), strconv.FormatInt(data.AutoNatRules[i].OriginalPort.ValueInt64(), 10), data.AutoNatRules[i].Protocol.ValueString(), strconv.FormatBool(data.AutoNatRules[i].PerformRouteLookup.ValueBool()), data.AutoNatRules[i].SourceInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslateDns.ValueBool()), data.AutoNatRules[i].TranslatedNetworkId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslatedNetworkIsDestinationInterface.ValueBool()), strconv.FormatInt(data.AutoNatRules[i].TranslatedPort.ValueInt64(), 10)}
+		keys := [...]string{"id", "natType", "destinationInterface.id", "fallThrough", "interfaceIpv6", "netToNet", "noProxyArp", "originalNetwork.id", "originalPort", "serviceProtocol", "routeLookup", "sourceInterface.id", "dns", "translatedNetwork.id", "interfaceInTranslatedNetwork", "translatedPort"}
+		keyValues := [...]string{data.AutoNatRules[i].Id.ValueString(), data.AutoNatRules[i].NatType.ValueString(), data.AutoNatRules[i].DestinationInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].FallThrough.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].Ipv6.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NetToNet.ValueBool()), strconv.FormatBool(data.AutoNatRules[i].NoProxyArp.ValueBool()), data.AutoNatRules[i].OriginalNetworkId.ValueString(), strconv.FormatInt(data.AutoNatRules[i].OriginalPort.ValueInt64(), 10), data.AutoNatRules[i].Protocol.ValueString(), strconv.FormatBool(data.AutoNatRules[i].PerformRouteLookup.ValueBool()), data.AutoNatRules[i].SourceInterfaceId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslateDns.ValueBool()), data.AutoNatRules[i].TranslatedNetworkId.ValueString(), strconv.FormatBool(data.AutoNatRules[i].TranslatedNetworkIsDestinationInterface.ValueBool()), strconv.FormatInt(data.AutoNatRules[i].TranslatedPort.ValueInt64(), 10)}
 
 		var r gjson.Result
 		res.Get("dummy_auto_nat_rules").ForEach(
@@ -840,11 +812,3 @@ func (data *FTDNATPolicy) fromBodyUnknowns(ctx context.Context, res gjson.Result
 }
 
 // End of section. //template:end fromBodyUnknowns
-
-// Section below is generated&owned by "gen/generator.go". //template:begin Clone
-
-// End of section. //template:end Clone
-
-// Section below is generated&owned by "gen/generator.go". //template:begin toBodyNonBulk
-
-// End of section. //template:end toBodyNonBulk
