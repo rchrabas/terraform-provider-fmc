@@ -37,7 +37,12 @@ jobs:
       - run: go mod download
       - run: go generate
       - run: git diff --exit-code
-      - run: go build -v .
+      - run: go build -v -o bin/terraform-provider-fmc .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terraform-provider-fmc
+          path: bin/terraform-provider-fmc
+          override: true
 
   # Run acceptance tests in a matrix with Terraform CLI versions
   test:
